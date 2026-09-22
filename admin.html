@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>興嘉班級點數｜管理者後台</title>
+<style>
+:root{
+ --bg:#f5faf8;--card:#fff;--text:#244b58;--muted:#78909a;--line:#dce8e7;
+ --primary:#27b7b2;--danger:#e85e68;--warn:#f0a33d;--shadow:0 12px 30px rgba(46,86,96,.12)
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:"Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif;background:var(--bg);color:var(--text)}
+button,input{font:inherit}button{cursor:pointer}
+header{padding:22px 28px;background:linear-gradient(180deg,#bfeeff,#e5f8ef);border-bottom:1px solid #cfe4e3}
+header h1{margin:0}
+.wrap{max-width:1280px;margin:auto;padding:20px}
+.card{background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:18px}
+.auth{max-width:520px;margin:30px auto}
+.hidden{display:none!important}
+label{display:block;font-weight:800;margin:10px 0 5px}
+input{width:100%;padding:10px 12px;border:1px solid #cad9d9;border-radius:10px}
+.btn{border:1px solid var(--line);background:#fff;color:var(--text);border-radius:10px;padding:8px 12px;font-weight:800}
+.btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+.btn.danger{background:var(--danger);border-color:var(--danger);color:#fff}
+.btn.warn{background:var(--warn);border-color:var(--warn);color:#fff}
+.btn.sm{padding:5px 8px;font-size:13px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.topbar{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px}
+.stat{border:1px solid var(--line);border-radius:14px;padding:14px;background:#fff}
+.stat b{font-size:28px}
+table{width:100%;border-collapse:collapse}
+th,td{padding:9px;border-bottom:1px solid #edf2f2;text-align:left;vertical-align:middle}
+.status-ACTIVE{color:#14885f;font-weight:900}
+.status-PENDING{color:#d18d20;font-weight:900}
+.status-SUSPENDED{color:#c74f59;font-weight:900}
+.small{font-size:13px;color:var(--muted)}
+.modalbg{position:fixed;inset:0;background:rgba(0,0,0,.38);display:none;align-items:center;justify-content:center;padding:18px;z-index:50}
+.modalbg.show{display:flex}
+.modal{width:min(900px,100%);max-height:90vh;overflow:auto;background:#fff;border-radius:18px;padding:18px}
+.notice{padding:12px;background:#fff8dd;border:1px solid #efdd8f;border-radius:12px;margin-top:10px}
+</style>
+</head>
+<body>
+<header>
+  <h1>興嘉班級點數｜管理者後台</h1>
+</header>
+
+<div class="wrap">
+  <section id="loginView" class="auth card">
+    <h2>管理者登入</h2>
+    <label>管理者帳號</label><input id="adminAccount" autocomplete="username">
+    <label>管理者密碼</label><input id="adminPassword" type="password" autocomplete="current-password">
+    <button class="btn primary" style="width:100%;margin-top:14px" onclick="adminLogin()">登入</button>
+    <div id="loginMsg" class="notice hidden"></div>
+    <div class="small" style="margin-top:10px">管理者帳號請在 Apps Script 的 Script Properties 設定。</div>
+  </section>
+
+  <section id="adminView" class="hidden">
+    <div class="card">
+      <div class="topbar">
+        <div>
+          <div style="font-size:24px;font-weight:900">使用者與班級管理</div>
+          <div class="small">管理申請、核准、停用及查看各班使用狀況</div>
+        </div>
+        <div class="row">
+          <button class="btn" onclick="refreshAdmin()">重新整理</button>
+          <button class="btn danger" onclick="adminLogout()">登出</button>
+        </div>
+      </div>
+
+      <div class="stats">
+        <div class="stat"><div class="small">待審核</div><b id="statPending">0</b></div>
+        <div class="stat"><div class="small">已啟用</div><b id="statActive">0</b></div>
+        <div class="stat"><div class="small">已停用</div><b id="statSuspended">0</b></div>
+        <div class="stat"><div class="small">總學生數</div><b id="statStudents">0</b></div>
+      </div>
+
+      <div style="overflow:auto">
+        <table>
+          <thead>
+            <tr>
+              <th>教師</th><th>班級</th><th>帳號</th><th>Email</th>
+              <th>狀態</th><th>學生數</th><th>申請時間</th><th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="userBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div id="modalBg" class="modalbg" onclick="if(event.target===this)closeModal()">
+  <div id="modal" class="modal"></div>
+</div>
+
+<script>
+const API_URL='https://script.google.com/macros/s/AKfycbzJc0cG0bwRc_tIeY0BkneTPBTcRps3tQ8dghA3H6DQtihJDp85yGPxg8Eup-F29SMWrA/exec';
+let adminToken=sessionStorage.getItem('classPointsAdminToken')||'';
+let users=[];
+
+function api(action,data={}){
+  if(API_URL.includes('PASTE_')) return Promise.reject(new Error('尚未設定 Apps Script Web App URL'));
+  return fetch(API_URL,{
+    method:'POST',
+    headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body:JSON.stringify({action,adminToken,...data})
+  }).then(r=>r.json()).then(r=>{
+    if(!r.ok)throw new Error(r.message||'操作失敗');
+    return r;
+  });
+}
+function esc(s=''){
+  return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+}
+async function adminLogin(){
+  try{
+    const r=await api('admin.login',{
+      account:adminAccount.value.trim(),
+      password:adminPassword.value
+    });
+    adminToken=r.adminToken;
+    sessionStorage.setItem('classPointsAdminToken',adminToken);
+    loginView.classList.add('hidden');
+    adminView.classList.remove('hidden');
+    await refreshAdmin();
+  }catch(e){
+    loginMsg.textContent=e.message;
+    loginMsg.classList.remove('hidden');
+  }
+}
+async function boot(){
+  if(!adminToken)return;
+  try{
+    await api('admin.me');
+    loginView.classList.add('hidden');
+    adminView.classList.remove('hidden');
+    await refreshAdmin();
+  }catch(e){
+    sessionStorage.removeItem('classPointsAdminToken');
+    adminToken='';
+  }
+}
+function adminLogout(){
+  sessionStorage.removeItem('classPointsAdminToken');
+  location.reload();
+}
+async function refreshAdmin(){
+  try{
+    const r=await api('admin.users');
+    users=r.users;
+    statPending.textContent=users.filter(x=>x.status==='PENDING').length;
+    statActive.textContent=users.filter(x=>x.status==='ACTIVE').length;
+    statSuspended.textContent=users.filter(x=>x.status==='SUSPENDED').length;
+    statStudents.textContent=users.reduce((a,b)=>a+(Number(b.studentCount)||0),0);
+
+    userBody.innerHTML=users.length?users.map(u=>`
+      <tr>
+        <td>${esc(u.teacherName)}</td>
+        <td>${esc(u.className)}</td>
+        <td>${esc(u.account)}</td>
+        <td>${esc(u.email||'')}</td>
+        <td class="status-${esc(u.status)}">${esc(u.status)}</td>
+        <td>${Number(u.studentCount)||0}</td>
+        <td>${esc(u.createdAt)}</td>
+        <td>
+          ${u.status==='PENDING'?`<button class="btn sm primary" onclick="setStatus('${u.userId}','ACTIVE')">核准</button>`:''}
+          ${u.status==='ACTIVE'?`<button class="btn sm warn" onclick="setStatus('${u.userId}','SUSPENDED')">停用</button>`:''}
+          ${u.status==='SUSPENDED'?`<button class="btn sm primary" onclick="setStatus('${u.userId}','ACTIVE')">啟用</button>`:''}
+          <button class="btn sm" onclick="viewClass('${u.userId}')">查看</button>
+          <button class="btn sm danger" onclick="removeUser('${u.userId}')">刪除</button>
+        </td>
+      </tr>`).join(''):
+      '<tr><td colspan="8">尚無使用者</td></tr>';
+  }catch(e){alert(e.message)}
+}
+async function setStatus(userId,status){
+  try{
+    await api('admin.setUserStatus',{userId,status});
+    await refreshAdmin();
+  }catch(e){alert(e.message)}
+}
+async function removeUser(userId){
+  const u=users.find(x=>x.userId===userId);
+  if(!u)return;
+  if(!confirm(`確定刪除 ${u.teacherName}／${u.className}？\n此操作會刪除該班學生與點數紀錄。`))return;
+  const code=prompt('請輸入 DELETE 確認刪除：');
+  if(code!=='DELETE')return;
+  try{
+    await api('admin.deleteUser',{userId,confirm:'DELETE'});
+    await refreshAdmin();
+  }catch(e){alert(e.message)}
+}
+async function viewClass(userId){
+  try{
+    const r=await api('admin.classDetail',{userId});
+    const u=r.user, ss=r.students, ls=r.logs;
+    modal.innerHTML=`
+      <h2>${esc(u.className)}｜${esc(u.teacherName)}</h2>
+      <p class="small">班級代碼：${esc(u.tenantId)}</p>
+      <h3>學生名單（${ss.length}）</h3>
+      <div style="overflow:auto;max-height:330px">
+        <table>
+          <thead><tr><th>座號</th><th>姓名</th><th>組別</th><th>點數</th></tr></thead>
+          <tbody>${ss.map(s=>`<tr><td>${esc(s.no)}</td><td>${esc(s.name)}</td><td>${esc(s.groupName||'')}</td><td>${s.points}</td></tr>`).join('')}</tbody>
+        </table>
+      </div>
+      <h3>最近紀錄</h3>
+      <div style="overflow:auto;max-height:260px">
+        <table>
+          <thead><tr><th>時間</th><th>學生</th><th>異動</th><th>原因</th></tr></thead>
+          <tbody>${ls.map(x=>`<tr><td>${esc(x.createdAt)}</td><td>${esc(x.studentName)}</td><td>${x.delta>0?'+':''}${x.delta}</td><td>${esc(x.reason||'')}</td></tr>`).join('')}</tbody>
+        </table>
+      </div>
+      <div class="row" style="justify-content:flex-end;margin-top:12px">
+        <button class="btn" onclick="closeModal()">關閉</button>
+      </div>`;
+    modalBg.classList.add('show');
+  }catch(e){alert(e.message)}
+}
+function closeModal(){modalBg.classList.remove('show')}
+boot();
+</script>
+</body>
+</html>
