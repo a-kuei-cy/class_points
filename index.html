@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>興嘉班級點數系統</title>
+<style>
+:root{
+  --bg:#f5faf8;--card:#fff;--text:#244b58;--muted:#78909a;--line:#dce8e7;
+  --primary:#27b7b2;--primary2:#168f8a;--danger:#e85e68;--warn:#f0a33d;
+  --shadow:0 12px 30px rgba(46,86,96,.12);
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:"Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif;background:var(--bg);color:var(--text)}
+button,input,select,textarea{font:inherit}
+button{cursor:pointer}
+header{
+  padding:24px 28px;background:linear-gradient(180deg,#bfeeff,#e5f8ef);
+  border-bottom:1px solid #cfe4e3
+}
+header h1{margin:0;font-size:40px}
+header p{margin:6px 0 0;color:#567683}
+.wrap{max-width:1280px;margin:auto;padding:20px}
+.card{background:#fff;border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow);padding:18px}
+.hidden{display:none!important}
+.auth{max-width:540px;margin:28px auto}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.tab{border:1px solid var(--line);background:#fff;border-radius:10px;padding:9px 13px;font-weight:800}
+.tab.active{background:var(--primary);color:#fff}
+label{display:block;font-weight:800;margin:10px 0 5px}
+input,select,textarea{width:100%;padding:10px 12px;border:1px solid #cad9d9;border-radius:10px;background:#fff}
+textarea{min-height:130px;resize:vertical}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn{border:1px solid var(--line);background:#fff;color:var(--text);border-radius:10px;padding:9px 13px;font-weight:800}
+.btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+.btn.danger{background:var(--danger);border-color:var(--danger);color:#fff}
+.btn.warn{background:var(--warn);border-color:var(--warn);color:#fff}
+.btn.sm{padding:6px 9px;font-size:14px}
+.notice{padding:12px 14px;background:#fff8dd;border:1px solid #efdd8f;border-radius:12px;margin-top:12px}
+.topbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.title{font-size:25px;font-weight:900}
+.small{font-size:13px;color:var(--muted)}
+.badge{display:inline-block;padding:4px 9px;border-radius:999px;background:#eef9f8;font-size:13px}
+.student-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:12px}
+.student{border:1px solid var(--line);border-radius:16px;padding:13px;background:#fff}
+.student.selected{outline:3px solid rgba(39,183,178,.2);border-color:var(--primary)}
+.student .name{font-size:18px;font-weight:900}
+.student .meta{font-size:13px;color:var(--muted)}
+.student .points{font-size:31px;font-weight:900;color:var(--primary2);margin:8px 0}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+table{width:100%;border-collapse:collapse}
+th,td{padding:9px;border-bottom:1px solid #edf2f2;text-align:left;vertical-align:middle}
+.modalbg{position:fixed;inset:0;background:rgba(0,0,0,.38);display:none;align-items:center;justify-content:center;padding:18px;z-index:50}
+.modalbg.show{display:flex}
+.modal{width:min(800px,100%);max-height:90vh;overflow:auto;background:#fff;border-radius:18px;padding:18px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.status-ok{color:#14885f;font-weight:900}
+.status-pending{color:#d18d20;font-weight:900}
+.status-stop{color:#c74f59;font-weight:900}
+@media(max-width:650px){
+  header h1{font-size:30px}.two{grid-template-columns:1fr}.wrap{padding:12px}
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>興嘉班級點數</h1>
+  <p>多人申請・各班獨立・學生資料互不影響</p>
+</header>
+
+<div class="wrap">
+  <section id="authView" class="auth card">
+    <div class="tabs">
+      <button id="loginTab" class="tab active" onclick="showAuth('login')">教師登入</button>
+      <button id="applyTab" class="tab" onclick="showAuth('apply')">申請使用</button>
+    </div>
+
+    <div id="loginBox">
+      <h2>教師登入</h2>
+      <label>帳號</label>
+      <input id="loginAccount" autocomplete="username">
+      <label>密碼</label>
+      <input id="loginPassword" type="password" autocomplete="current-password">
+      <button class="btn primary" style="width:100%;margin-top:14px" onclick="login()">登入</button>
+      <div style="margin-top:10px;text-align:center">
+        <a href="admin.html">管理者後台</a>
+      </div>
+    </div>
+
+    <div id="applyBox" class="hidden">
+      <h2>申請班級空間</h2>
+      <div class="two">
+        <div><label>教師姓名</label><input id="regName"></div>
+        <div><label>班級名稱</label><input id="regClass" placeholder="例如：307"></div>
+        <div><label>登入帳號</label><input id="regAccount"></div>
+        <div><label>登入密碼</label><input id="regPassword" type="password"></div>
+      </div>
+      <label>Email（選填）</label><input id="regEmail" type="email">
+      <button class="btn primary" style="width:100%;margin-top:14px" onclick="applyAccount()">送出申請</button>
+      <div class="small" style="margin-top:8px">申請後須由管理者核准才可登入。</div>
+    </div>
+
+    <div id="authMsg" class="notice hidden"></div>
+  </section>
+
+  <section id="appView" class="hidden">
+    <div class="card">
+      <div class="topbar">
+        <div>
+          <div id="classTitle" class="title">我的班級</div>
+          <div class="small"><span id="teacherName"></span>　<span id="tenantBadge" class="badge"></span></div>
+        </div>
+        <div class="row">
+          <button class="btn" onclick="refreshAll()">重新整理</button>
+          <button class="btn" onclick="openProfile()">帳號資料</button>
+          <button class="btn danger" onclick="logout()">登出</button>
+        </div>
+      </div>
+
+      <div class="tabs">
+        <button class="tab active" data-page="students" onclick="switchPage('students',this)">學生點數</button>
+        <button class="tab" data-page="manage" onclick="switchPage('manage',this)">學生管理</button>
+        <button class="tab" data-page="logs" onclick="switchPage('logs',this)">點數紀錄</button>
+      </div>
+
+      <div id="page-students">
+        <div class="toolbar">
+          <button class="btn primary" onclick="awardSelected(1)">多人 ＋1</button>
+          <button class="btn" onclick="awardSelected(2)">多人 ＋2</button>
+          <button class="btn" onclick="awardSelected(5)">多人 ＋5</button>
+          <button class="btn" onclick="clearSelected()">取消選取</button>
+        </div>
+        <div id="studentCards" class="student-grid"></div>
+      </div>
+
+      <div id="page-manage" class="hidden">
+        <div class="toolbar">
+          <button class="btn primary" onclick="openBatchAdd()">批次新增</button>
+          <button class="btn" onclick="downloadCSV()">匯出 CSV</button>
+          <label class="btn" style="cursor:pointer">匯入 CSV
+            <input type="file" id="csvFile" accept=".csv" hidden onchange="uploadCSV(event)">
+          </label>
+        </div>
+        <div style="overflow:auto">
+          <table>
+            <thead><tr><th>座號</th><th>姓名</th><th>組別</th><th>點數</th><th>操作</th></tr></thead>
+            <tbody id="manageBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="page-logs" class="hidden">
+        <div style="overflow:auto">
+          <table>
+            <thead><tr><th>時間</th><th>學生</th><th>異動</th><th>原因</th></tr></thead>
+            <tbody id="logBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div id="modalBg" class="modalbg" onclick="if(event.target===this)closeModal()">
+  <div id="modal" class="modal"></div>
+</div>
+
+<script>
+const API_URL = 'https://script.google.com/macros/s/AKfycbzJc0cG0bwRc_tIeY0BkneTPBTcRps3tQ8dghA3H6DQtihJDp85yGPxg8Eup-F29SMWrA/exec';
+
+let token = localStorage.getItem('classPointsToken') || '';
+let me = null;
+let students = [];
+let logs = [];
+let selected = new Set();
+
+function api(action,data={}){
+  if(API_URL.includes('PASTE_')) return Promise.reject(new Error('尚未設定 Apps Script Web App URL'));
+  return fetch(API_URL,{
+    method:'POST',
+    headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body:JSON.stringify({action,token,...data})
+  }).then(r=>r.json()).then(r=>{
+    if(!r.ok) throw new Error(r.message||'操作失敗');
+    return r;
+  });
+}
+function esc(s=''){
+  return String(s).replace(/[&<>"']/g,m=>({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'
+  }[m]));
+}
+function showAuth(type){
+  loginBox.classList.toggle('hidden',type!=='login');
+  applyBox.classList.toggle('hidden',type!=='apply');
+  loginTab.classList.toggle('active',type==='login');
+  applyTab.classList.toggle('active',type==='apply');
+}
+function msg(t){
+  authMsg.textContent=t;
+  authMsg.classList.remove('hidden');
+}
+async function applyAccount(){
+  try{
+    const teacherName=regName.value.trim();
+    const className=regClass.value.trim();
+    const account=regAccount.value.trim();
+    const password=regPassword.value;
+    const email=regEmail.value.trim();
+
+    if(!teacherName||!className||!account||password.length<6){
+      return msg('請完整填寫，密碼至少 6 碼。');
+    }
+    const r=await api('register',{teacherName,className,account,password,email});
+    msg(r.message||'申請完成，請等待管理者核准。');
+    showAuth('login');
+  }catch(e){msg(e.message)}
+}
+async function login(){
+  try{
+    const r=await api('login',{
+      account:loginAccount.value.trim(),
+      password:loginPassword.value
+    });
+    token=r.token;
+    localStorage.setItem('classPointsToken',token);
+    me=r.user;
+    openApp();
+    await refreshAll();
+  }catch(e){msg(e.message)}
+}
+async function boot(){
+  if(!token)return;
+  try{
+    const r=await api('me');
+    me=r.user;
+    openApp();
+    await refreshAll();
+  }catch(e){
+    localStorage.removeItem('classPointsToken');
+    token='';
+  }
+}
+function openApp(){
+  authView.classList.add('hidden');
+  appView.classList.remove('hidden');
+  classTitle.textContent=me.className;
+  teacherName.textContent=me.teacherName;
+  tenantBadge.textContent='班級代碼 '+me.tenantId.slice(0,8);
+}
+function logout(){
+  localStorage.removeItem('classPointsToken');
+  location.reload();
+}
+async function refreshAll(){
+  try{
+    const [s,l]=await Promise.all([
+      api('students.list'),
+      api('logs.list',{limit:200})
+    ]);
+    students=s.students;
+    logs=l.logs;
+    renderStudents();
+    renderManage();
+    renderLogs();
+  }catch(e){alert(e.message)}
+}
+function renderStudents(){
+  studentCards.innerHTML=students.length?students.map(s=>`
+    <div class="student ${selected.has(s.studentId)?'selected':''}" onclick="toggleStudent('${s.studentId}')">
+      <div class="name">${esc(s.no)} ${esc(s.name)}</div>
+      <div class="meta">${esc(s.groupName||'未分組')}</div>
+      <div class="points">${Number(s.points)||0} 點</div>
+      <div class="row">
+        <button class="btn sm primary" onclick="event.stopPropagation();award('${s.studentId}',1)">＋1</button>
+        <button class="btn sm" onclick="event.stopPropagation();award('${s.studentId}',-1)">－1</button>
+      </div>
+    </div>`).join(''):
+    '<div class="notice">尚無學生，請到「學生管理」批次新增。</div>';
+}
+function renderManage(){
+  manageBody.innerHTML=students.length?students.map(s=>`
+    <tr>
+      <td>${esc(s.no)}</td>
+      <td>${esc(s.name)}</td>
+      <td>${esc(s.groupName||'')}</td>
+      <td>${Number(s.points)||0}</td>
+      <td>
+        <button class="btn sm" onclick="editStudent('${s.studentId}')">編修</button>
+        <button class="btn sm danger" onclick="deleteStudent('${s.studentId}')">刪除</button>
+      </td>
+    </tr>`).join(''):
+    '<tr><td colspan="5">目前沒有學生資料</td></tr>';
+}
+function renderLogs(){
+  logBody.innerHTML=logs.length?logs.map(x=>`
+    <tr>
+      <td>${esc(x.createdAt)}</td>
+      <td>${esc(x.studentName)}</td>
+      <td>${x.delta>0?'+':''}${x.delta}</td>
+      <td>${esc(x.reason||'')}</td>
+    </tr>`).join(''):
+    '<tr><td colspan="4">尚無點數紀錄</td></tr>';
+}
+function toggleStudent(id){
+  selected.has(id)?selected.delete(id):selected.add(id);
+  renderStudents();
+}
+function clearSelected(){selected.clear();renderStudents()}
+async function award(id,delta){
+  try{
+    await api('points.add',{studentIds:[id],delta,reason:'個人點數'});
+    await refreshAll();
+  }catch(e){alert(e.message)}
+}
+async function awardSelected(delta){
+  if(!selected.size)return alert('請先選取學生');
+  try{
+    await api('points.add',{studentIds:[...selected],delta,reason:'多人快速加分'});
+    selected.clear();
+    await refreshAll();
+  }catch(e){alert(e.message)}
+}
+function switchPage(p,el){
+  ['students','manage','logs'].forEach(x=>{
+    document.getElementById('page-'+x).classList.toggle('hidden',x!==p);
+  });
+  document.querySelectorAll('.tab[data-page]').forEach(x=>x.classList.remove('active'));
+  el.classList.add('active');
+}
+function openModal(html){
+  modal.innerHTML=html;
+  modalBg.classList.add('show');
+}
+function closeModal(){modalBg.classList.remove('show')}
+function openBatchAdd(){
+  openModal(`
+    <h2>批次新增學生</h2>
+    <p>每行一位，格式：<b>座號,姓名,組別</b></p>
+    <textarea id="batchText" placeholder="01,王小明,第一組&#10;02,陳小華,第一組&#10;03,林小美,第二組"></textarea>
+    <div class="row" style="justify-content:flex-end;margin-top:12px">
+      <button class="btn" onclick="closeModal()">取消</button>
+      <button class="btn primary" onclick="batchAdd()">新增</button>
+    </div>`);
+}
+async function batchAdd(){
+  const rows=batchText.value.split(/\r?\n/)
+    .map(x=>x.trim()).filter(Boolean)
+    .map(line=>{
+      const p=line.split(/[,，\t]/).map(x=>x.trim());
+      return {no:p[0]||'',name:p[1]||p[0]||'',groupName:p[2]||''};
+    }).filter(x=>x.name);
+  try{
+    await api('students.batchAdd',{students:rows});
+    closeModal();
+    await refreshAll();
+  }catch(e){alert(e.message)}
+}
+function editStudent(id){
+  const s=students.find(x=>x.studentId===id);
+  if(!s)return;
+  openModal(`
+    <h2>編修學生</h2>
+    <div class="two">
+      <div><label>座號</label><input id="eNo" value="${esc(s.no)}"></div>
+      <div><label>姓名</label><input id="eName" value="${esc(s.name)}"></div>
+      <div><label>組別</label><input id="eGroup" value="${esc(s.groupName||'')}"></div>
+      <div><label>點數</label><input id="ePoints" type="number" value="${Number(s.points)||0}"></div>
+    </div>
+    <div class="row" style="justify-content:flex-end;margin-top:12px">
+      <button class="btn" onclick="closeModal()">取消</button>
+      <button class="btn primary" onclick="saveStudent('${id}')">儲存</button>
+    </div>`);
+}
+async function saveStudent(id){
+  try{
+    await api('students.update',{
+      studentId:id,
+      no:eNo.value.trim(),
+      name:eName.value.trim(),
+      groupName:eGroup.value.trim(),
+      points:Number(ePoints.value)||0
+    });
+    closeModal();
+    await refreshAll();
+  }catch(e){alert(e.message)}
+}
+async function deleteStudent(id){
+  if(!confirm('確定刪除此學生？只會刪除目前班級的這位學生。'))return;
+  try{
+    await api('students.delete',{studentId:id});
+    await refreshAll();
+  }catch(e){alert(e.message)}
+}
+function downloadCSV(){
+  const rows=[['座號','姓名','組別','點數'],...students.map(s=>[
+    s.no,s.name,s.groupName||'',s.points
+  ])];
+  const csv='\ufeff'+rows.map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=(me.className||'班級')+'_學生點數.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function parseCsvLine(line){
+  const out=[];let cur='',q=false;
+  for(let i=0;i<line.length;i++){
+    const c=line[i];
+    if(c==='"'){
+      if(q && line[i+1]==='"'){cur+='"';i++} else q=!q;
+    }else if(c===','&&!q){out.push(cur);cur=''}
+    else cur+=c;
+  }
+  out.push(cur);
+  return out;
+}
+function uploadCSV(e){
+  const f=e.target.files[0];if(!f)return;
+  const rd=new FileReader();
+  rd.onload=async()=>{
+    try{
+      const lines=String(rd.result).replace(/^\ufeff/,'').split(/\r?\n/).filter(Boolean);
+      const arr=lines.map(parseCsvLine);
+      const start=(arr[0]||[]).join('').includes('姓名')?1:0;
+      const rows=arr.slice(start).map((r,i)=>({
+        no:(r[0]||String(i+1).padStart(2,'0')).trim(),
+        name:(r[1]||r[0]||'').trim(),
+        groupName:(r[2]||'').trim(),
+        points:Number(r[3])||0
+      })).filter(x=>x.name);
+      await api('students.batchAdd',{students:rows});
+      await refreshAll();
+      alert('匯入完成');
+    }catch(err){alert(err.message)}
+  };
+  rd.readAsText(f,'UTF-8');
+  e.target.value='';
+}
+function openProfile(){
+  openModal(`
+    <h2>帳號資料</h2>
+    <p>教師：${esc(me.teacherName)}</p>
+    <p>班級：${esc(me.className)}</p>
+    <p>帳號：${esc(me.account)}</p>
+    <p>班級代碼：${esc(me.tenantId)}</p>
+    <div class="row" style="justify-content:flex-end">
+      <button class="btn" onclick="closeModal()">關閉</button>
+    </div>`);
+}
+boot();
+</script>
+</body>
+</html>
